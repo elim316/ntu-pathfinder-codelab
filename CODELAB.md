@@ -1,13 +1,3 @@
-id: build-ntu-pathfinder-antigravity
-summary: Build a live NTU 4-Year Degree & Prerequisite Skill-Tree Planner with Spec-Driven Development in Google Antigravity.
-categories: AI Agents, Web, Next.js, TypeScript
-environments: Web
-status: Published
-feedback link: https://github.com/elim316/ntu-pathfinder-codelab/issues
-authors: Elias Lim
-keywords: docType:Codelab,category:AiAndMachineLearning,category:Web,product:Antigravity,product:GoogleCloud,product:Gemini,language:TypeScript,framework:Nextjs
-layout: scrolling
-
 # Introduction to Google Antigravity: Build your own NTU 4-Year Degree and Skill-Tree Planner
 
 ## Overview and Objectives
