@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NTU PathFinder | 4-Year Degree & Prerequisite Skill-Tree Planner</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen font-sans antialiased">
+  <!-- Top Sticky Header & Entire Uni Journey AU Progress Bar -->
+  <header class="sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-slate-200 px-6 py-4">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div>
+        <div class="flex items-center gap-2.5">
+          <span class="inline-block w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+          <h1 class="text-lg font-semibold tracking-tight text-slate-900">NTU PathFinder</h1>
+          <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+            Powered by NTUMods Open API
+          </span>
+        </div>
+        <p class="text-xs text-slate-500 mt-0.5">
+          4-Year University Journey, Semester Roadmap & Prerequisite Skill-Tree Visualiser
+        </p>
+      </div>
+
+      <!-- Faculty Selector & Career Track Filter -->
+      <div class="flex flex-wrap items-center gap-3">
+        <label class="text-xs text-slate-600 font-medium flex items-center gap-2">
+          Programme
+          <select id="facultySelect" class="text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="CSC">CSC (Computer Science)</option>
+            <option value="CE">CE (Computer Engineering)</option>
+            <option value="EEE">EEE (Electrical & Electronic Eng)</option>
+            <option value="BUS">BUS (Business)</option>
+            <option value="ACC">ACC (Accountancy)</option>
+            <option value="ME">ME (Mechanical Engineering)</option>
+            <option value="MATH">MATH (Mathematical Sciences)</option>
+            <option value="ECON">ECON (Economics)</option>
+            <option value="PSY">PSY (Psychology)</option>
+            <option value="CBE">CBE (Chemical & Biomolecular Eng)</option>
+            <option value="CEE">CEE (Civil & Environmental Eng)</option>
+            <option value="BS">BS (Biological Sciences)</option>
+          </select>
+        </label>
+
+        <input
+          id="searchInput"
+          type="text"
+          placeholder="Filter by keyword or code (e.g. AI, Cyber, SC3000)..."
+          class="text-xs bg-white border border-slate-300 rounded-lg px-3 py-1.5 w-64 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+
+        <button
+          id="loadPresetBtn"
+          class="text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition"
+        >
+          Load Sample CS Roadmap
+        </button>
+      </div>
+    </div>
+
+    <!-- Graduation AU Progress Bar -->
+    <div class="max-w-7xl mx-auto mt-3 pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      <div class="flex items-center gap-4 text-xs">
+        <span class="font-medium text-slate-700">Graduation Progress: <span id="totalAuLabel" class="text-blue-600 font-semibold">0 / 130 AUs</span></span>
+        <span class="text-slate-500">Core/Major: <span id="coreAuLabel" class="text-slate-800 font-medium">0 AU</span></span>
+        <span class="text-slate-500">ICC Common Cores: <span id="iccAuLabel" class="text-slate-800 font-medium">0 / 17 AU</span></span>
+        <span id="statusBanner" class="text-emerald-700 font-medium">All prerequisites satisfied</span>
+      </div>
+      <div class="w-full sm:w-64 h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+        <div id="auProgressBar" class="h-full bg-blue-600 transition-all duration-300" style="width: 0%"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-6 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <!-- Left Sidebar: Module Catalogue & Skill-Tree Explorer (4 cols) -->
+    <section class="lg:col-span-4 bg-white rounded-xl border border-slate-200 p-4 flex flex-col h-[78vh]">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div>
+          <h2 class="text-sm font-semibold text-slate-900">Programme Catalogue</h2>
+          <p class="text-xs text-slate-500">Grouped by Year Level (1xxx to 4xxx) & ICC</p>
+        </div>
+        <select id="targetSemSelect" class="text-xs bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 text-slate-700">
+          <option value="Y1S1">Add to: Y1 Sem 1</option>
+          <option value="Y1S2">Add to: Y1 Sem 2</option>
+          <option value="Y2S1">Add to: Y2 Sem 1</option>
+          <option value="Y2S2">Add to: Y2 Sem 2</option>
+          <option value="Y3S1">Add to: Y3 Sem 1</option>
+          <option value="Y3S2">Add to: Y3 Sem 2</option>
+          <option value="Y4S1">Add to: Y4 Sem 1</option>
+          <option value="Y4S2">Add to: Y4 Sem 2</option>
+        </select>
+      </div>
+
+      <!-- Year Level Tabs -->
+      <div class="grid grid-cols-5 gap-1 my-3 bg-slate-100 p-1 rounded-lg text-xs">
+        <button data-tab="1" class="tab-btn py-1 rounded-md font-medium bg-white text-slate-900 shadow-sm">Year 1</button>
+        <button data-tab="2" class="tab-btn py-1 rounded-md font-medium text-slate-600">Year 2</button>
+        <button data-tab="3" class="tab-btn py-1 rounded-md font-medium text-slate-600">Year 3</button>
+        <button data-tab="4" class="tab-btn py-1 rounded-md font-medium text-slate-600">Year 4</button>
+        <button data-tab="icc" class="tab-btn py-1 rounded-md font-medium text-slate-600">ICC</button>
+      </div>
+
+      <div id="catalogueList" class="flex-1 overflow-y-auto space-y-2 pr-1"></div>
+    </section>
+
+    <!-- Right Board: 4-Year / 8-Semester University Journey Grid (8 cols) -->
+    <section class="lg:col-span-8 flex flex-col gap-4">
+      <div id="yearsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+
+      <!-- Selected Module Inspector & Prerequisite Skill-Tree Panel -->
+      <div id="inspectorPanel" class="bg-white rounded-xl border border-slate-200 p-4">
+        <div class="flex items-center justify-between">
+          <h3 id="inspectorTitle" class="text-sm font-semibold text-slate-900">
+            Click any module card to inspect its live prerequisite tree and unlocked courses
+          </h3>
+          <span id="inspectorBadge" class="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600">Idle</span>
+        </div>
+        <p id="inspectorDesc" class="text-xs text-slate-600 mt-1.5 line-clamp-2"></p>
+        <div id="inspectorMeta" class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs"></div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module">
+    import {
+      SEMESTERS,
+      groupCatalogueByYear,
+      validateModuleInSlot,
+      normaliseModuleSummary,
+    } from "./planner-engine.mjs";
+
+    const API_BASE = "https://ntumods.com";
+    let bulkData = null;
+    let currentFaculty = "CSC";
+    let activeTab = "1";
+    let searchQuery = "";
+    let selectedCode = null;
+    let unlockedHighlightSet = new Set();
+
+    // Cache of hydrated module detail payloads from /api/modules/{code}
+    const detailsByCode = {};
+    // Map of code -> normalised summary
+    const summaryByCode = {};
+
+    // 8-Semester plan state
+    const plan = {
+      Y1S1: [],
+      Y1S2: [],
+      Y2S1: [],
+      Y2S2: [],
+      Y3S1: [],
+      Y3S2: [],
+      Y4S1: [],
+      Y4S2: [],
+    };
+
+    async function fetchBulkCatalogue() {
+      try {
+        const res = await fetch(`${API_BASE}/data/api/modules.json`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return await res.json();
+      } catch (err) {
+        const fallback = await fetch("./modules.json");
+        return await fallback.json();
+      }
+    }
+
+    async function hydrateModuleDetail(code) {
+      if (detailsByCode[code]) return detailsByCode[code];
+      try {
+        const res = await fetch(`${API_BASE}/api/modules/${encodeURIComponent(code)}`);
+        if (res.ok) {
+          const data = await res.json();
+          detailsByCode[code] = data;
+          return data;
+        }
+      } catch (_) {
+        // Fallback to local cached file if available in scratch
+      }
+      try {
+        const localRes = await fetch(`./${code.toLowerCase()}.json`);
+        if (localRes.ok) {
+          const data = await localRes.json();
+          detailsByCode[code] = data;
+          return data;
+        }
+      } catch (_) {}
+      return null;
+    }
+
+    async function addModuleToSemester(code, semId) {
+      // Remove from any existing semester first to prevent duplicates
+      for (const s of SEMESTERS) {
+        plan[s.id] = plan[s.id].filter((c) => c !== code);
+      }
+      plan[semId].push(code);
+      await hydrateModuleDetail(code);
+      await inspectModule(code);
+      renderAll();
+    }
+
+    function removeModuleFromSemester(code, semId) {
+      plan[semId] = plan[semId].filter((c) => c !== code);
+      renderAll();
+    }
+
+    async function inspectModule(code) {
+      selectedCode = code;
+      const detail = await hydrateModuleDetail(code);
+      unlockedHighlightSet = new Set(detail?.requiredBy || []);
+
+      const titleEl = document.getElementById("inspectorTitle");
+      const badgeEl = document.getElementById("inspectorBadge");
+      const descEl = document.getElementById("inspectorDesc");
+      const metaEl = document.getElementById("inspectorMeta");
+
+      const sum = summaryByCode[code] || normaliseModuleSummary(detail || { code });
+      titleEl.textContent = `${code}: ${sum.title || ""}`;
+      badgeEl.textContent = `${sum.au} AU | ${sum.faculty || "NTU"}`;
+      descEl.textContent = detail?.description || "Loading live module description from ntumods.com...";
+
+      const prereqStr =
+        detail?.prerequisites?.length > 0
+          ? detail.prerequisites.map((grp) => `(${grp.join(" + ")})`).join(" OR ")
+          : "None (Foundation Module)";
+      const unlocksStr =
+        detail?.requiredBy?.length > 0 ? detail.requiredBy.slice(0, 12).join(", ") : "None";
+      const mutexStr =
+        detail?.mutuallyExclusiveWith?.length > 0
+          ? detail.mutuallyExclusiveWith.join(", ")
+          : "None";
+
+      metaEl.innerHTML = `
+        <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+          <div class="font-medium text-slate-700">Prerequisites (DNF)</div>
+          <div class="text-slate-600 mt-0.5">${prereqStr}</div>
+        </div>
+        <div class="p-2.5 rounded-lg bg-blue-50/60 border border-blue-200">
+          <div class="font-medium text-blue-900">Unlocks (${detail?.requiredBy?.length || 0} Modules)</div>
+          <div class="text-blue-700 mt-0.5">${unlocksStr}</div>
+        </div>
+        <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+          <div class="font-medium text-slate-700">Mutually Exclusive</div>
+          <div class="text-slate-600 mt-0.5">${mutexStr}</div>
+        </div>
+      `;
+      renderAll();
+    }
+
+    function renderCatalogue() {
+      const container = document.getElementById("catalogueList");
+      if (!bulkData) {
+        container.innerHTML = `<p class="text-xs text-slate-400 p-2">Loading NTUMods catalogue...</p>`;
+        return;
+      }
+
+      const groups = groupCatalogueByYear(bulkData, currentFaculty);
+      let list = groups[activeTab] || [];
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        list = [
+          ...groups[1],
+          ...groups[2],
+          ...groups[3],
+          ...groups[4],
+          ...groups.icc,
+        ].filter(
+          (m) => m.code.toLowerCase().includes(q) || m.title.toLowerCase().includes(q)
+        );
+      }
+
+      const plannedSet = new Set(Object.values(plan).flat());
+      const targetSemId = document.getElementById("targetSemSelect").value;
+
+      container.innerHTML = list
+        .map((mod) => {
+          const isPlanned = plannedSet.has(mod.code);
+          const isUnlockedHighlight = unlockedHighlightSet.has(mod.code);
+          const borderClass = isUnlockedHighlight
+            ? "border-blue-500 bg-blue-50/40 ring-1 ring-blue-400"
+            : "border-slate-200 hover:border-slate-300 bg-white";
+
+          return `
+            <div class="p-2.5 rounded-lg border ${borderClass} flex items-center justify-between gap-2 transition">
+              <div class="min-w-0 flex-1 cursor-pointer" data-inspect="${mod.code}">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-semibold text-slate-900">${mod.code}</span>
+                  <span class="text-[11px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600">${mod.au} AU</span>
+                  ${
+                    isUnlockedHighlight
+                      ? `<span class="text-[10px] px-1.5 py-0.2 rounded bg-blue-100 text-blue-700 font-medium">Unlocked by ${selectedCode}</span>`
+                      : ""
+                  }
+                </div>
+                <p class="text-xs text-slate-600 truncate mt-0.5">${mod.title}</p>
+              </div>
+              <button
+                data-add="${mod.code}"
+                class="text-xs px-2.5 py-1 rounded-md font-medium ${
+                  isPlanned
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    : "bg-slate-900 text-white hover:bg-slate-700"
+                }"
+              >
+                ${isPlanned ? "Planned" : `+ ${targetSemId}`}
+              </button>
+            </div>
+          `;
+        })
+        .join("");
+
+      container.querySelectorAll("[data-add]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const code = btn.getAttribute("data-add");
+          const sem = document.getElementById("targetSemSelect").value;
+          addModuleToSemester(code, sem);
+        });
+      });
+
+      container.querySelectorAll("[data-inspect]").forEach((el) => {
+        el.addEventListener("click", () => inspectModule(el.getAttribute("data-inspect")));
+      });
+    }
+
+    function renderBoard() {
+      const yearsGrid = document.getElementById("yearsGrid");
+      let totalAu = 0;
+      let coreAu = 0;
+      let iccAu = 0;
+      let conflictCount = 0;
+
+      const yearCards = [1, 2, 3, 4].map((yearNum) => {
+        const semsForYear = SEMESTERS.filter((s) => s.year === yearNum);
+        const semColumnsHtml = semsForYear
+          .map((sem) => {
+            const codes = plan[sem.id] || [];
+            const semAu = codes.reduce(
+              (acc, c) => acc + (summaryByCode[c]?.au ?? 3),
+              0
+            );
+
+            const cardsHtml = codes
+              .map((code) => {
+                const sum = summaryByCode[code] || { code, title: code, au: 3, isIcc: false };
+                totalAu += sum.au;
+                if (sum.isIcc) iccAu += sum.au;
+                else coreAu += sum.au;
+
+                const check = validateModuleInSlot(code, sem.id, plan, detailsByCode);
+                if (check.status === "conflict") conflictCount++;
+
+                const isUnlocked = unlockedHighlightSet.has(code);
+                let cardStyle = "border-slate-200 bg-white";
+                let badgeHtml = `<span class="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">Valid</span>`;
+
+                if (check.status === "conflict") {
+                  cardStyle = "border-rose-400 bg-rose-50/50";
+                  const missingTxt = check.missingPrereqGroups
+                    .map((g) => g.join("+"))
+                    .join(" or ");
+                  const reason = !check.prereqMet
+                    ? `Needs: ${missingTxt}`
+                    : `Mutex: ${check.mutexConflicts.join(",")}`;
+                  badgeHtml = `<span class="text-[10px] text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded font-medium">${reason}</span>`;
+                } else if (check.status === "warning") {
+                  cardStyle = "border-amber-300 bg-amber-50/40";
+                  badgeHtml = `<span class="text-[10px] text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">${check.semesterWarning}</span>`;
+                } else if (isUnlocked) {
+                  cardStyle = "border-blue-500 bg-blue-50/40 ring-1 ring-blue-400";
+                }
+
+                return `
+                  <div class="p-2 rounded-lg border ${cardStyle} text-xs transition cursor-pointer" data-card="${code}">
+                    <div class="flex items-center justify-between gap-1">
+                      <span class="font-semibold text-slate-900">${code}</span>
+                      <div class="flex items-center gap-1">
+                        <span class="text-[10px] text-slate-500">${sum.au} AU</span>
+                        <button data-remove="${code}" data-sem="${sem.id}" class="text-slate-400 hover:text-rose-600 px-1">×</button>
+                      </div>
+                    </div>
+                    <p class="text-[11px] text-slate-600 truncate mt-0.5">${sum.title}</p>
+                    <div class="mt-1.5 flex items-center justify-between">${badgeHtml}</div>
+                  </div>
+                `;
+              })
+              .join("");
+
+            return `
+              <div class="bg-slate-50/80 rounded-lg p-2.5 border border-slate-200/80 min-h-[180px] flex flex-col">
+                <div class="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-200">
+                  <span class="text-xs font-semibold text-slate-700">${sem.label}</span>
+                  <span class="text-[11px] font-medium text-slate-500">${semAu} AU</span>
+                </div>
+                <div class="space-y-2 flex-1">
+                  ${
+                    cardsHtml ||
+                    `<p class="text-[11px] text-slate-400 py-6 text-center">No modules added</p>`
+                  }
+                </div>
+              </div>
+            `;
+          })
+          .join("");
+
+        return `
+          <div class="bg-white rounded-xl border border-slate-200 p-3.5 shadow-sm">
+            <div class="flex items-center justify-between mb-2.5">
+              <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Year ${yearNum} (${yearNum}xxx Level)</h3>
+            </div>
+            <div class="grid grid-cols-2 gap-2.5">${semColumnsHtml}</div>
+          </div>
+        `;
+      });
+
+      yearsGrid.innerHTML = yearCards.join("");
+
+      // Update Top Journey Progress Bar
+      document.getElementById("totalAuLabel").textContent = `${totalAu} / 130 AUs`;
+      document.getElementById("coreAuLabel").textContent = `${coreAu} AU`;
+      document.getElementById("iccAuLabel").textContent = `${iccAu} / 17 AU`;
+      document.getElementById("auProgressBar").style.width = `${Math.min(
+        100,
+        Math.round((totalAu / 130) * 100)
+      )}%`;
+
+      const banner = document.getElementById("statusBanner");
+      if (conflictCount > 0) {
+        banner.textContent = `${conflictCount} prerequisite or mutex issue(s) detected`;
+        banner.className = "text-rose-600 font-medium";
+      } else {
+        banner.textContent = "All prerequisites satisfied";
+        banner.className = "text-emerald-700 font-medium";
+      }
+
+      yearsGrid.querySelectorAll("[data-remove]").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          removeModuleFromSemester(
+            btn.getAttribute("data-remove"),
+            btn.getAttribute("data-sem")
+          );
+        });
+      });
+
+      yearsGrid.querySelectorAll("[data-card]").forEach((card) => {
+        card.addEventListener("click", () => inspectModule(card.getAttribute("data-card")));
+      });
+    }
+
+    function renderAll() {
+      renderCatalogue();
+      renderBoard();
+    }
+
+    async function loadSampleCsRoadmap() {
+      const sample = {
+        Y1S1: ["SC1003", "MH1812", "CC0001"],
+        Y1S2: ["SC1007", "CC0002"],
+        Y2S1: ["SC2001", "CC0003"],
+        Y2S2: ["SC2002", "CC0005"],
+        Y3S1: ["SC3000", "CC0006"],
+        Y3S2: ["CC0007"],
+        Y4S1: ["ML0004"],
+        Y4S2: [],
+      };
+      for (const semId of Object.keys(plan)) {
+        plan[semId] = [...(sample[semId] || [])];
+      }
+      await Promise.all(
+        Object.values(plan)
+          .flat()
+          .map((code) => hydrateModuleDetail(code))
+      );
+      await inspectModule("SC1007");
+      renderAll();
+    }
+
+    async function init() {
+      bulkData = await fetchBulkCatalogue();
+      for (const raw of bulkData.modules || []) {
+        summaryByCode[raw.code] = normaliseModuleSummary(raw);
+      }
+
+      document.getElementById("facultySelect").addEventListener("change", (e) => {
+        currentFaculty = e.target.value;
+        renderAll();
+      });
+
+      document.getElementById("targetSemSelect").addEventListener("change", () => {
+        renderCatalogue();
+      });
+
+      document.getElementById("searchInput").addEventListener("input", (e) => {
+        searchQuery = e.target.value;
+        renderCatalogue();
+      });
+
+      document.querySelectorAll(".tab-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          activeTab = btn.getAttribute("data-tab");
+          document.querySelectorAll(".tab-btn").forEach((b) => {
+            b.className =
+              b === btn
+                ? "tab-btn py-1 rounded-md font-medium bg-white text-slate-900 shadow-sm"
+                : "tab-btn py-1 rounded-md font-medium text-slate-600";
+          });
+          renderCatalogue();
+        });
+      });
+
+      document
+        .getElementById("loadPresetBtn")
+        .addEventListener("click", loadSampleCsRoadmap);
+
+      await loadSampleCsRoadmap();
+    }
+
+    init();
+  </script>
+</body>
+</html>
