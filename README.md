@@ -1,62 +1,54 @@
-# NTU PathFinder: 4-Year Degree & Prerequisite Skill-Tree Workshop
+# NTU PathFinder: 4-Year Degree and Prerequisite Skill-Tree Workshop
 
-Hands-on Spec-Driven Development (SDD) codelab for building an interactive 4-year Nanyang Technological University (NTU) course roadmap and prerequisite skill-tree visualiser using Google Antigravity and the public [NTUMods Developer API](https://ntumods.com/developers) (`https://ntumods.com/mcp` and `https://ntumods.com/data/api/modules.json`).
+Welcome to the hands-on Google Antigravity workshop for Nanyang Technological University (NTU)! In this step-by-step tutorial, you will build NTU PathFinder, an interactive 4-year university degree roadmap and prerequisite skill-tree visualiser powered by the live [NTUMods Open API](https://ntumods.com/developers).
 
-- Step-by-Step Codelab Guide: [CODELAB.md](./CODELAB.md)
-- Agent API Contract & Guardrails: [.agents/rules/ntumods-api-contract.md](./.agents/rules/ntumods-api-contract.md)
-- Core Validation Engine: [planner-engine.mjs](./planner-engine.mjs)
-- Single-Page Web Application: [index.html](./index.html)
-- Automated Verification Suite: [test-pathfinder.mjs](./test-pathfinder.mjs)
+No prior coding experience is required. You will pair-program with the Antigravity AI Agent using Spec-Driven Development (SDD).
+
+- Start the Step-by-Step Codelab Guide: [CODELAB.md](./CODELAB.md)
+- Antigravity Workspace Rules: [.agents/rules/workspace.md](./.agents/rules/workspace.md)
+- Reference Web App: [index.html](./index.html) and [planner-engine.mjs](./planner-engine.mjs)
 
 ---
 
-## Architecture Overview
+## What You Will Build
 
-Unlike single-semester timetable builders, NTU PathFinder plans a student's entire 4-year university journey across 8 semesters (`Year 1 Sem 1` to `Year 4 Sem 2`) using zero API keys and zero backend databases:
+1. An Interactive 8-Semester Degree Board: Plan your entire NTU journey from Year 1 Sem 1 to Year 4 Sem 2 with a live Graduation Academic Unit (AU) progress bar tracking your Core AUs, Interdisciplinary Collaborative Core (ICC) AUs, and Electives.
+2. A Live Prerequisite Skill-Tree Visualiser: Click any Year 1 or Year 2 course to highlight the Year 3 and Year 4 modules it unlocks, and automatically catch missing prerequisites or mutually exclusive course clashes before STARS registration.
+3. One-Click Cloud Deployment to Vercel: Publish your planner to the cloud with a shareable URL that you and your coursemates can access from anywhere.
 
 ```text
-+-----------------------------------------------------------------------------------+
-| ENTIRE UNI JOURNEY (Top Bar): Total Graduation Progress: 102 / 130 AUs            |
-+-----------------------------------------------------------------------------------+
-|      YEAR 1 (1xxx)      |      YEAR 2 (2xxx)      |      YEAR 3 (3xxx)      | ... |
-+------------+------------+------------+------------+------------+------------+-----+
-|   Sem 1    |   Sem 2    |   Sem 1    |   Sem 2    |   Sem 1    |   Sem 2    | ... |
-|            |            |            |            |            |            |     |
-| [SC1003]   | [SC1007]   | [SC2001]   | [SC2002]   | [SC3000]   | [CC0007]   |     |
-|  3 AU      |  3 AU      |  3 AU      |  3 AU      |  3 AU      |  3 AU      |     |
-|  (Unlocks  |  (Needs    |  (Needs    |  (Needs    |  (Needs    |  (ICC      |     |
-|   SC1007)  |   SC1003)  |   SC1007+  |   SC1003)  |   SC1007+  |   Core)    |     |
-|            |            |   MH1812)  |            |   SC2000)  |            |     |
-+------------+------------+------------+------------+------------+------------+-----+
+                      +-----------------------------------------------+
+                      |            Live Public NTUMods APIs           |
+                      |  +-------------------+ +-------------------+  |
+                      |  |  Bulk Catalogue   | | Module Graph API  |  |
+                      |  | /data/api/modules | | /api/modules/CODE |  |
+                      |  +---------+---------+ +---------+---------+  |
+                      +------------|---------------------|------------+
+                                   |                     |
+                                   v                     v
+                      +-----------------------------------------------+
+                      |              Shared Data Layer                |
+                      |   * lib/types.ts        * lib/ntumods.ts      |
+                      +------------+---------------------+------------+
+                                   |                     |
+                                   v                     v
+      +-----------------------------------------------------------------------+
+      |                NTU PathFinder Web Dashboard (app/page.tsx)            |
+      |  * Top Bar: Entire 4-Year Graduation Progress (130 AU Target & ICC)   |
+      |  * Left Sidebar: Programme Catalogue Grouped by Year 1 to 4 & ICC     |
+      |  * Main Grid: 8-Semester Board with Live Prerequisite & Mutex Alerts  |
+      |  * Bottom Drawer: Interactive Skill-Tree & Course Unlock Inspector    |
+      +-----------------------------------------------------------------------+
 ```
-
-1. Entire University Journey (Top Bar): Tracks cumulative Academic Units (AUs), Core/Major AUs, and compulsory Interdisciplinary Collaborative Core (ICC) AUs toward the 130 AU graduation target.
-2. Per Year (`1xxx` to `4xxx` Catalogue): Filters `GET https://ntumods.com/data/api/modules.json` dynamically by faculty (`CSC`, `CE`, `EEE`, `BUS`, `ACC`, `ME`, `MATH`, `ECON`, `PSY`, `CBE`, `CEE`, `BS`) and organises courses into Year 1 (`1xxx`) through Year 4 (`4xxx`) plus University ICC cores (`CC0001` to `CC0007`, `ML0004`).
-3. Per Semester (Skill-Tree & Prerequisite Engine): Hydrates `GET https://ntumods.com/api/modules/{code}` on demand to evaluate 2D Disjunctive Normal Form (DNF) prerequisite groups, mutual exclusions (`mutuallyExclusiveWith`), semester offering availability, and downstream course unlocks (`requiredBy`).
 
 ---
 
-## Quick Start
+## Follow the Codelab
 
-### 1. Run the Automated Test Suite
-```bash
-node test-pathfinder.mjs
-```
-
-### 2. Launch the Web App Locally
-```bash
-python3 -m http.server 8080
-```
-Then open `http://localhost:8080` in your browser.
-
----
-
-## Full Step-by-Step Workshop Guide
-
-Follow [CODELAB.md](./CODELAB.md) for the complete 60-minute Google Codelabs walkthrough, including:
-- Phase 0: Connecting the remote NTUMods MCP Server (`https://ntumods.com/mcp`) and anchoring Antigravity with `.agents/rules/ntumods-api-contract.md`.
-- Phase 1: Generating the implementation blueprint with `/plan`.
-- Phase 2: Writing the normalised data and DNF prerequisite validation engine (`planner-engine.mjs`).
-- Phase 3: Building the 8-semester board and skill-tree visualiser (`index.html`).
-- Phase 4: Testing real-world edge cases (missing prerequisites, same-semester prerequisite traps, mutual exclusions, and cross-faculty switching).
-- Phase 5: Extending the board with AI Career Track presets via the NTUMods MCP server.
+Open [CODELAB.md](./CODELAB.md) to begin the step-by-step workshop:
+1. Environment Setup, Rules and Scaffolding (`.agents/rules/workspace.md`)
+2. Phase 1: Architecture Blueprint and Planning Mode with `/plan`
+3. Phase 2: Inspect the Campus Data Layer (`lib/types.ts` and `lib/ntumods.ts`)
+4. Phase 3: Launch and Test Your 4-Year Degree Planner (`http://localhost:3000`)
+5. Phase 4: Supercharge Your Agent with Skills (`taste-skill`) and `/grill-me` Design Interview
+6. Phase 5 (Optional Challenge): One-Click Deploy to Vercel
