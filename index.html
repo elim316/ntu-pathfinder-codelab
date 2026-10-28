@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://ntumods.com; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'none';"
+  />
   <title>NTU PathFinder | 4-Year Degree & Prerequisite Skill-Tree Planner</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
@@ -133,6 +137,15 @@
 
     const API_BASE = "https://ntumods.com";
     let bulkData = null;
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
     let currentFaculty = "CSC";
     let activeTab = "1";
     let searchQuery = "";
@@ -235,15 +248,15 @@
       metaEl.innerHTML = `
         <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
           <div class="font-medium text-slate-700">Prerequisites (DNF)</div>
-          <div class="text-slate-600 mt-0.5">${prereqStr}</div>
+          <div class="text-slate-600 mt-0.5">${escapeHtml(prereqStr)}</div>
         </div>
         <div class="p-2.5 rounded-lg bg-blue-50/60 border border-blue-200">
-          <div class="font-medium text-blue-900">Unlocks (${detail?.requiredBy?.length || 0} Modules)</div>
-          <div class="text-blue-700 mt-0.5">${unlocksStr}</div>
+          <div class="font-medium text-blue-900">Unlocks (${Number(detail?.requiredBy?.length || 0)} Modules)</div>
+          <div class="text-blue-700 mt-0.5">${escapeHtml(unlocksStr)}</div>
         </div>
         <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
           <div class="font-medium text-slate-700">Mutually Exclusive</div>
-          <div class="text-slate-600 mt-0.5">${mutexStr}</div>
+          <div class="text-slate-600 mt-0.5">${escapeHtml(mutexStr)}</div>
         </div>
       `;
       renderAll();
@@ -282,29 +295,35 @@
             ? "border-blue-500 bg-blue-50/40 ring-1 ring-blue-400"
             : "border-slate-200 hover:border-slate-300 bg-white";
 
+          const safeCode = escapeHtml(mod.code);
+          const safeTitle = escapeHtml(mod.title);
+          const safeAu = escapeHtml(mod.au);
+          const safeSelected = escapeHtml(selectedCode);
+          const safeTargetSem = escapeHtml(targetSemId);
+
           return `
             <div class="p-2.5 rounded-lg border ${borderClass} flex items-center justify-between gap-2 transition">
-              <div class="min-w-0 flex-1 cursor-pointer" data-inspect="${mod.code}">
+              <div class="min-w-0 flex-1 cursor-pointer" data-inspect="${safeCode}">
                 <div class="flex items-center gap-2">
-                  <span class="text-xs font-semibold text-slate-900">${mod.code}</span>
-                  <span class="text-[11px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600">${mod.au} AU</span>
+                  <span class="text-xs font-semibold text-slate-900">${safeCode}</span>
+                  <span class="text-[11px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600">${safeAu} AU</span>
                   ${
                     isUnlockedHighlight
-                      ? `<span class="text-[10px] px-1.5 py-0.2 rounded bg-blue-100 text-blue-700 font-medium">Unlocked by ${selectedCode}</span>`
+                      ? `<span class="text-[10px] px-1.5 py-0.2 rounded bg-blue-100 text-blue-700 font-medium">Unlocked by ${safeSelected}</span>`
                       : ""
                   }
                 </div>
-                <p class="text-xs text-slate-600 truncate mt-0.5">${mod.title}</p>
+                <p class="text-xs text-slate-600 truncate mt-0.5">${safeTitle}</p>
               </div>
               <button
-                data-add="${mod.code}"
+                data-add="${safeCode}"
                 class="text-xs px-2.5 py-1 rounded-md font-medium ${
                   isPlanned
                     ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                     : "bg-slate-900 text-white hover:bg-slate-700"
                 }"
               >
-                ${isPlanned ? "Planned" : `+ ${targetSemId}`}
+                ${isPlanned ? "Planned" : `+ ${safeTargetSem}`}
               </button>
             </div>
           `;
@@ -363,24 +382,29 @@
                   const reason = !check.prereqMet
                     ? `Needs: ${missingTxt}`
                     : `Mutex: ${check.mutexConflicts.join(",")}`;
-                  badgeHtml = `<span class="text-[10px] text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded font-medium">${reason}</span>`;
+                  badgeHtml = `<span class="text-[10px] text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded font-medium">${escapeHtml(reason)}</span>`;
                 } else if (check.status === "warning") {
                   cardStyle = "border-amber-300 bg-amber-50/40";
-                  badgeHtml = `<span class="text-[10px] text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">${check.semesterWarning}</span>`;
+                  badgeHtml = `<span class="text-[10px] text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">${escapeHtml(check.semesterWarning)}</span>`;
                 } else if (isUnlocked) {
                   cardStyle = "border-blue-500 bg-blue-50/40 ring-1 ring-blue-400";
                 }
 
+                const safeCode = escapeHtml(code);
+                const safeTitle = escapeHtml(sum.title);
+                const safeAu = escapeHtml(sum.au);
+                const safeSemId = escapeHtml(sem.id);
+
                 return `
-                  <div class="p-2 rounded-lg border ${cardStyle} text-xs transition cursor-pointer" data-card="${code}">
+                  <div class="p-2 rounded-lg border ${cardStyle} text-xs transition cursor-pointer" data-card="${safeCode}">
                     <div class="flex items-center justify-between gap-1">
-                      <span class="font-semibold text-slate-900">${code}</span>
+                      <span class="font-semibold text-slate-900">${safeCode}</span>
                       <div class="flex items-center gap-1">
-                        <span class="text-[10px] text-slate-500">${sum.au} AU</span>
-                        <button data-remove="${code}" data-sem="${sem.id}" class="text-slate-400 hover:text-rose-600 px-1">×</button>
+                        <span class="text-[10px] text-slate-500">${safeAu} AU</span>
+                        <button data-remove="${safeCode}" data-sem="${safeSemId}" class="text-slate-400 hover:text-rose-600 px-1">×</button>
                       </div>
                     </div>
-                    <p class="text-[11px] text-slate-600 truncate mt-0.5">${sum.title}</p>
+                    <p class="text-[11px] text-slate-600 truncate mt-0.5">${safeTitle}</p>
                     <div class="mt-1.5 flex items-center justify-between">${badgeHtml}</div>
                   </div>
                 `;

@@ -1,0 +1,25 @@
+# Dependencies & Build Outputs
+node_modules/
+.next/
+out/
+dist/
+build/
+.vercel/
+
+# Secrets, Environment & Private Keys (Never Commit)
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*credentials*.json
+*secret*.json
+
+# Production Source Maps (Never Commit or Deploy to Client Bundles)
+*.map
+
+# OS & Editor Artefacts
+.DS_Store
+*.log

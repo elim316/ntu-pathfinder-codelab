@@ -39,3 +39,8 @@
     - Blue highlight ring (`Unlocked by ...`) when the user clicks an earlier foundation module that unlocks this course.
 - Bottom Skill-Tree Inspector Panel:
   - Clicking any module card shows its full description, DNF prerequisites, the list of downstream modules it unlocks (`requiredBy`), and mutually exclusive courses.
+
+## Security & Production Bundle Hygiene
+- Zero Client-Side Secrets: Never define `NEXT_PUBLIC_*` environment variables containing API keys, OAuth tokens, private keys, or database connection strings. Any future authenticated integrations must run strictly inside server-only Route Handlers (`app/api/.../route.ts`) or Server Actions.
+- Disable Production Source Maps: Always set `productionBrowserSourceMaps: false` in `next.config.mjs` and exclude `*.map` files via `.gitignore` so internal source trees are not exposed in production client bundles.
+- Output Encoding & CSP: Render all external fields from `https://ntumods.com` through standard JSX text bindings or `escapeHtml()` (never `dangerouslySetInnerHTML`), and enforce a strict `Content-Security-Policy` restricting `connect-src` to `'self' https://ntumods.com`.
