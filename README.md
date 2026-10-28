@@ -62,10 +62,11 @@ Each section includes:
 In this section, we will set up a new Next.js project in VS Code and configure our Antigravity workspace rules.
 
 ### 1. Prerequisites Check
-Make sure you have the following installed on your laptop:
+You only need two things installed on your laptop to complete the workshop:
 - Node.js (version 18.17.0 or higher): Download Node.js at https://nodejs.org/en/download
 - Visual Studio Code (VS Code) with the Antigravity Extension installed and logged in: Download VS Code at https://code.visualstudio.com/download
-- Vercel Account (Free Hobby plan for the optional Phase 5 cloud deployment): Sign up at https://vercel.com/signup
+
+> Optional for Phase 5 Only: If you want to try the optional cloud deployment challenge at the end of the workshop to get a shareable public URL, you can sign up for a free Vercel Hobby account at https://vercel.com/signup later. You do not need a Vercel account to build and run the app in Phases 1 to 4.
 
 ### 2. Open VS Code and Create Your Project
 1. Open Visual Studio Code.
