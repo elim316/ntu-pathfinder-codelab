@@ -130,22 +130,17 @@
   <script type="module">
     import {
       SEMESTERS,
+      VALID_SEMESTER_IDS,
       groupCatalogueByYear,
       validateModuleInSlot,
       normaliseModuleSummary,
+      escapeHtml,
+      isValidModuleCode,
     } from "./planner-engine.mjs";
 
     const API_BASE = "https://ntumods.com";
     let bulkData = null;
 
-    function escapeHtml(value) {
-      return String(value ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-    }
     let currentFaculty = "CSC";
     let activeTab = "1";
     let searchQuery = "";
@@ -171,19 +166,29 @@
 
     async function fetchBulkCatalogue() {
       try {
-        const res = await fetch(`${API_BASE}/data/api/modules.json`);
+        const res = await fetch(`${API_BASE}/data/api/modules.json`, {
+          signal: AbortSignal.timeout(8000),
+        });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return await res.json();
       } catch (err) {
-        const fallback = await fetch("./modules.json");
-        return await fallback.json();
+        try {
+          const fallback = await fetch("./modules.json", {
+            signal: AbortSignal.timeout(4000),
+          });
+          if (fallback.ok) return await fallback.json();
+        } catch (_) {}
+        return { modules: [] };
       }
     }
 
     async function hydrateModuleDetail(code) {
+      if (!isValidModuleCode(code)) return null;
       if (detailsByCode[code]) return detailsByCode[code];
       try {
-        const res = await fetch(`${API_BASE}/api/modules/${encodeURIComponent(code)}`);
+        const res = await fetch(`${API_BASE}/api/modules/${encodeURIComponent(code)}`, {
+          signal: AbortSignal.timeout(5000),
+        });
         if (res.ok) {
           const data = await res.json();
           detailsByCode[code] = data;
@@ -193,7 +198,9 @@
         // Fallback to local cached file if available in scratch
       }
       try {
-        const localRes = await fetch(`./${code.toLowerCase()}.json`);
+        const localRes = await fetch(`./${code.toLowerCase()}.json`, {
+          signal: AbortSignal.timeout(3000),
+        });
         if (localRes.ok) {
           const data = await localRes.json();
           detailsByCode[code] = data;
@@ -204,6 +211,7 @@
     }
 
     async function addModuleToSemester(code, semId) {
+      if (!VALID_SEMESTER_IDS.has(semId) || !isValidModuleCode(code)) return;
       // Remove from any existing semester first to prevent duplicates
       for (const s of SEMESTERS) {
         plan[s.id] = plan[s.id].filter((c) => c !== code);
@@ -215,11 +223,13 @@
     }
 
     function removeModuleFromSemester(code, semId) {
+      if (!VALID_SEMESTER_IDS.has(semId)) return;
       plan[semId] = plan[semId].filter((c) => c !== code);
       renderAll();
     }
 
     async function inspectModule(code) {
+      if (!isValidModuleCode(code)) return;
       selectedCode = code;
       const detail = await hydrateModuleDetail(code);
       unlockedHighlightSet = new Set(detail?.requiredBy || []);
@@ -329,18 +339,6 @@
           `;
         })
         .join("");
-
-      container.querySelectorAll("[data-add]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const code = btn.getAttribute("data-add");
-          const sem = document.getElementById("targetSemSelect").value;
-          addModuleToSemester(code, sem);
-        });
-      });
-
-      container.querySelectorAll("[data-inspect]").forEach((el) => {
-        el.addEventListener("click", () => inspectModule(el.getAttribute("data-inspect")));
-      });
     }
 
     function renderBoard() {
@@ -457,20 +455,6 @@
         banner.textContent = "All prerequisites satisfied";
         banner.className = "text-emerald-700 font-medium";
       }
-
-      yearsGrid.querySelectorAll("[data-remove]").forEach((btn) => {
-        btn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          removeModuleFromSemester(
-            btn.getAttribute("data-remove"),
-            btn.getAttribute("data-sem")
-          );
-        });
-      });
-
-      yearsGrid.querySelectorAll("[data-card]").forEach((card) => {
-        card.addEventListener("click", () => inspectModule(card.getAttribute("data-card")));
-      });
     }
 
     function renderAll() {
@@ -492,16 +476,47 @@
       for (const semId of Object.keys(plan)) {
         plan[semId] = [...(sample[semId] || [])];
       }
-      await Promise.all(
-        Object.values(plan)
-          .flat()
-          .map((code) => hydrateModuleDetail(code))
-      );
+      const uniqueCodes = Array.from(new Set(Object.values(plan).flat()));
+      await Promise.all(uniqueCodes.map((code) => hydrateModuleDetail(code)));
       await inspectModule("SC1007");
       renderAll();
     }
 
     async function init() {
+      // Event delegation for catalogue list interactions
+      const catalogueListEl = document.getElementById("catalogueList");
+      catalogueListEl.addEventListener("click", (e) => {
+        const addBtn = e.target.closest("[data-add]");
+        if (addBtn) {
+          const code = addBtn.getAttribute("data-add");
+          const sem = document.getElementById("targetSemSelect").value;
+          addModuleToSemester(code, sem);
+          return;
+        }
+        const inspectEl = e.target.closest("[data-inspect]");
+        if (inspectEl) {
+          inspectModule(inspectEl.getAttribute("data-inspect"));
+        }
+      });
+
+      // Event delegation for semester board interactions
+      const yearsGridEl = document.getElementById("yearsGrid");
+      yearsGridEl.addEventListener("click", (e) => {
+        const removeBtn = e.target.closest("[data-remove]");
+        if (removeBtn) {
+          e.stopPropagation();
+          removeModuleFromSemester(
+            removeBtn.getAttribute("data-remove"),
+            removeBtn.getAttribute("data-sem")
+          );
+          return;
+        }
+        const cardEl = e.target.closest("[data-card]");
+        if (cardEl) {
+          inspectModule(cardEl.getAttribute("data-card"));
+        }
+      });
+
       bulkData = await fetchBulkCatalogue();
       for (const raw of bulkData.modules || []) {
         summaryByCode[raw.code] = normaliseModuleSummary(raw);

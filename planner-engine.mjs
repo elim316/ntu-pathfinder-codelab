@@ -11,6 +11,8 @@ export const ICC_CORE_CODES = [
   "ML0004",
 ];
 
+export const ICC_CORE_SET = new Set(ICC_CORE_CODES);
+
 export const SEMESTERS = [
   { id: "Y1S1", year: 1, sem: 1, label: "Year 1 Sem 1" },
   { id: "Y1S2", year: 1, sem: 2, label: "Year 1 Sem 2" },
@@ -22,11 +24,35 @@ export const SEMESTERS = [
   { id: "Y4S2", year: 4, sem: 2, label: "Year 4 Sem 2" },
 ];
 
+export const VALID_SEMESTER_IDS = new Set(SEMESTERS.map((s) => s.id));
+
+/**
+ * Escapes untrusted text before interpolation into DOM strings.
+ * Neutralises HTML markup, quotes, and script injection vectors.
+ */
+export function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
+ * Validates module code structure (e.g. SC2001, CC0001, MH1812).
+ * Prevents path traversal and injection via malformed codes.
+ */
+export function isValidModuleCode(code) {
+  return typeof code === "string" && /^[A-Z0-9]{5,10}$/.test(code);
+}
+
 /**
  * Extracts the study year (1 to 4) from an NTU module code (e.g. "SC2001" -> 2, "CC0001" -> 0).
  */
 export function getModuleYearLevel(code) {
-  const match = String(code || "").match(/^[A-Z]+(\d)/);
+  if (!code || typeof code !== "string") return 0;
+  const match = code.match(/^[A-Z]+(\d)/);
   if (!match) return 0;
   const digit = Number(match[1]);
   return digit >= 1 && digit <= 4 ? digit : 0;
@@ -39,16 +65,30 @@ export function getModuleYearLevel(code) {
  * - Detail uses `school` (string) and `au` (number 3)
  */
 export function normaliseModuleSummary(raw) {
+  if (!raw || typeof raw !== "object") {
+    return {
+      code: "",
+      title: "",
+      au: 0,
+      faculty: "",
+      categories: [],
+      latestYear: 0,
+      latestSemester: "",
+      yearLevel: 0,
+      isIcc: false,
+    };
+  }
+  const code = String(raw.code || "").toUpperCase();
   return {
-    code: raw.code,
-    title: raw.title,
+    code,
+    title: String(raw.title || ""),
     au: parseFloat(String(raw.au ?? 0)) || 0,
-    faculty: raw.faculty || raw.school || "",
+    faculty: String(raw.faculty || raw.school || ""),
     categories: Array.isArray(raw.categories) ? raw.categories : [],
     latestYear: Number(raw.latestYear || raw.latestOffering?.year || 0),
     latestSemester: String(raw.latestSemester || raw.latestOffering?.semester || ""),
-    yearLevel: getModuleYearLevel(raw.code),
-    isIcc: ICC_CORE_CODES.includes(raw.code),
+    yearLevel: getModuleYearLevel(code),
+    isIcc: ICC_CORE_SET.has(code),
   };
 }
 
@@ -62,17 +102,27 @@ export function groupCatalogueByYear(bulkPayload, facultyCode) {
   const groups = { 1: [], 2: [], 3: [], 4: [], icc: [] };
 
   for (const raw of rawList) {
-    const mod = normaliseModuleSummary(raw);
-    if (mod.isIcc) {
-      groups.icc.push(mod);
+    if (!raw || !raw.code) continue;
+    const code = String(raw.code).toUpperCase();
+    const isIcc = ICC_CORE_SET.has(code);
+
+    if (isIcc) {
+      groups.icc.push(normaliseModuleSummary(raw));
       continue;
     }
-    if (mod.latestYear < 2025) continue;
-    if (mod.faculty !== facultyCode) continue;
+
+    const latestYear = Number(raw.latestYear || raw.latestOffering?.year || 0);
+    if (latestYear < 2025) continue;
+
+    const faculty = raw.faculty || raw.school || "";
+    if (faculty !== facultyCode) continue;
+
     // Skip legacy CZ codes in CSC when modern SC equivalents exist
-    if (facultyCode === "CSC" && mod.code.startsWith("CZ")) continue;
-    if (mod.yearLevel >= 1 && mod.yearLevel <= 4) {
-      groups[mod.yearLevel].push(mod);
+    if (facultyCode === "CSC" && code.startsWith("CZ")) continue;
+
+    const yearLevel = getModuleYearLevel(code);
+    if (yearLevel >= 1 && yearLevel <= 4) {
+      groups[yearLevel].push(normaliseModuleSummary(raw));
     }
   }
 
@@ -93,20 +143,32 @@ export function groupCatalogueByYear(bulkPayload, facultyCode) {
  * means (MH1812 AND SC1007) OR (SC1007 AND SC1124) must appear in STRICTLY EARLIER semesters.
  */
 export function validateModuleInSlot(code, targetSemId, plan, detailsByCode) {
+  if (!VALID_SEMESTER_IDS.has(targetSemId)) {
+    return {
+      status: "unverified",
+      prereqMet: false,
+      missingPrereqGroups: [],
+      mutexConflicts: [],
+      semesterWarning: `Invalid semester: ${targetSemId}`,
+      unlocks: [],
+    };
+  }
+
   const targetIndex = SEMESTERS.findIndex((s) => s.id === targetSemId);
   const targetSemObj = SEMESTERS[targetIndex];
   const earlierCodes = new Set();
   const allPlannedCodes = new Set();
 
-  SEMESTERS.forEach((sem, idx) => {
-    const codesInSem = plan[sem.id] || [];
+  for (let idx = 0; idx < SEMESTERS.length; idx++) {
+    const sem = SEMESTERS[idx];
+    const codesInSem = plan && Array.isArray(plan[sem.id]) ? plan[sem.id] : [];
     for (const c of codesInSem) {
       if (c !== code) allPlannedCodes.add(c);
       if (idx < targetIndex) earlierCodes.add(c);
     }
-  });
+  }
 
-  const detail = detailsByCode[code];
+  const detail = detailsByCode ? detailsByCode[code] : null;
   if (!detail) {
     return {
       status: "unverified",
@@ -123,7 +185,10 @@ export function validateModuleInSlot(code, targetSemId, plan, detailsByCode) {
   let prereqMet = true;
   if (prereqGroups.length > 0) {
     prereqMet = prereqGroups.some(
-      (andGroup) => Array.isArray(andGroup) && andGroup.every((reqCode) => earlierCodes.has(reqCode))
+      (andGroup) =>
+        Array.isArray(andGroup) &&
+        andGroup.length > 0 &&
+        andGroup.every((reqCode) => earlierCodes.has(reqCode))
     );
   }
 

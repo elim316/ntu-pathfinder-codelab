@@ -4,6 +4,11 @@ import {
   normaliseModuleSummary,
   groupCatalogueByYear,
   validateModuleInSlot,
+  escapeHtml,
+  isValidModuleCode,
+  ICC_CORE_SET,
+  ICC_CORE_CODES,
+  VALID_SEMESTER_IDS,
 } from "./planner-engine.mjs";
 
 // Real payload snapshots from GET https://ntumods.com/data/api/modules.json and GET https://ntumods.com/api/modules/{code}
@@ -129,5 +134,66 @@ const resMutex = validateModuleInSlot("SC2001", "Y2S1", mutexPlan, detailsByCode
 assert.equal(resMutex.status, "conflict");
 assert.deepEqual(resMutex.mutexConflicts, ["CZ2001"]);
 console.log("PASS Test 4D: Detects mutuallyExclusiveWith conflict (SC2001 vs CZ2001)");
+
+// Test 5: Cyber Security - HTML Escaping & XSS Sanitisation
+assert.equal(escapeHtml('<script>alert("xss")</script>'), '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
+assert.equal(escapeHtml('"><img src=x onerror=alert(1)>'), '&quot;&gt;&lt;img src=x onerror=alert(1)&gt;');
+assert.equal(escapeHtml("' onfocus='alert(1)"), '&#39; onfocus=&#39;alert(1)');
+assert.equal(escapeHtml("Ben & Jerry's"), "Ben &amp; Jerry&#39;s");
+assert.equal(escapeHtml(null), "");
+assert.equal(escapeHtml(undefined), "");
+assert.equal(escapeHtml(123), "123");
+console.log("PASS Test 5: escapeHtml safely neutralises script injection, quotes, ampersands, and handles edge cases");
+
+// Test 6: Cyber Security - Course Code Validation & Path Traversal Prevention
+assert.equal(isValidModuleCode("SC2001"), true);
+assert.equal(isValidModuleCode("CC0001"), true);
+assert.equal(isValidModuleCode("MH1812"), true);
+assert.equal(isValidModuleCode("ML0004"), true);
+assert.equal(isValidModuleCode("../../etc/passwd"), false, "Path traversal via ../ must be rejected");
+assert.equal(isValidModuleCode("SC1003<script>"), false, "XSS markup in module code must be rejected");
+assert.equal(isValidModuleCode("SC2001; DROP TABLE"), false, "SQL/Command injection characters must be rejected");
+assert.equal(isValidModuleCode(""), false);
+assert.equal(isValidModuleCode(null), false);
+assert.equal(isValidModuleCode(undefined), false);
+assert.equal(isValidModuleCode(12345), false);
+console.log("PASS Test 6: isValidModuleCode blocks path traversal, injection vectors, and malformed inputs");
+
+// Test 7: Concurrency & Boundary Guards - Semester Validation
+const invalidSemRes = validateModuleInSlot("SC2001", "INVALID_SEM_ID", validPlan, detailsByCode);
+assert.equal(invalidSemRes.status, "unverified");
+assert.equal(invalidSemRes.prereqMet, false);
+assert.ok(invalidSemRes.semesterWarning?.includes("Invalid semester"));
+
+const protoSemRes = validateModuleInSlot("SC2001", "__proto__", validPlan, detailsByCode);
+assert.equal(protoSemRes.status, "unverified");
+assert.equal(protoSemRes.prereqMet, false);
+
+const unhydratedRes = validateModuleInSlot("UNKNOWN9999", "Y1S1", validPlan, detailsByCode);
+assert.equal(unhydratedRes.status, "unverified");
+assert.equal(unhydratedRes.prereqMet, true);
+
+const emptyPlanRes = validateModuleInSlot("SC1003", "Y1S1", {}, detailsByCode);
+assert.equal(emptyPlanRes.status, "valid");
+assert.equal(emptyPlanRes.prereqMet, true);
+console.log("PASS Test 7: validateModuleInSlot handles invalid semester IDs, prototype injection, and unhydrated modules cleanly");
+
+// Test 8: Performance & Optimisation - O(1) ICC Set and Catalogue Grouping
+assert.equal(ICC_CORE_SET.size, 7);
+assert.ok(ICC_CORE_SET.has("CC0001"));
+assert.ok(ICC_CORE_SET.has("ML0004"));
+assert.ok(!ICC_CORE_SET.has("SC1003"));
+assert.equal(VALID_SEMESTER_IDS.size, 8);
+assert.ok(VALID_SEMESTER_IDS.has("Y1S1"));
+assert.ok(VALID_SEMESTER_IDS.has("Y4S2"));
+
+// Benchmark catalogue grouping
+const t0 = performance.now();
+for (let i = 0; i < 100; i++) {
+  groupCatalogueByYear(sampleBulkPayload, "CSC");
+}
+const elapsed = performance.now() - t0;
+assert.ok(elapsed < 200, `Grouping 100 runs must be fast (took ${elapsed.toFixed(2)}ms)`);
+console.log(`PASS Test 8: Performance verification - O(1) sets and 100 iterations completed in ${elapsed.toFixed(2)}ms`);
 
 console.log("\nALL TESTS PASSED!");
