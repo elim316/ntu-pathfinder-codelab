@@ -4,11 +4,13 @@ import {
   normaliseModuleSummary,
   groupCatalogueByYear,
   validateModuleInSlot,
+  calculateDegreeProgress,
   escapeHtml,
   isValidModuleCode,
   ICC_CORE_SET,
   ICC_CORE_CODES,
   VALID_SEMESTER_IDS,
+  SEMESTER_INDEX_BY_ID,
 } from "./planner-engine.mjs";
 
 // Real payload snapshots from GET https://ntumods.com/data/api/modules.json and GET https://ntumods.com/api/modules/{code}
@@ -195,5 +197,48 @@ for (let i = 0; i < 100; i++) {
 const elapsed = performance.now() - t0;
 assert.ok(elapsed < 200, `Grouping 100 runs must be fast (took ${elapsed.toFixed(2)}ms)`);
 console.log(`PASS Test 8: Performance verification - O(1) sets and 100 iterations completed in ${elapsed.toFixed(2)}ms`);
+
+// Test 9: O(1) SEMESTER_INDEX_BY_ID verification
+assert.equal(SEMESTER_INDEX_BY_ID.size, 8);
+assert.equal(SEMESTER_INDEX_BY_ID.get("Y1S1"), 0);
+assert.equal(SEMESTER_INDEX_BY_ID.get("Y1S2"), 1);
+assert.equal(SEMESTER_INDEX_BY_ID.get("Y4S2"), 7);
+assert.equal(SEMESTER_INDEX_BY_ID.get("INVALID"), undefined);
+console.log("PASS Test 9: SEMESTER_INDEX_BY_ID precomputation provides instant O(1) index lookups");
+
+// Test 10: calculateDegreeProgress pure metrics evaluation
+const testSummaryByCode = {
+  SC1003: { code: "SC1003", title: "Intro to CT", au: 3, isIcc: false },
+  SC1007: { code: "SC1007", title: "DSA", au: 3, isIcc: false },
+  SC2001: { code: "SC2001", title: "Algorithms", au: 3, isIcc: false },
+  MH1812: { code: "MH1812", title: "Discrete Math", au: 3, isIcc: false },
+  CC0001: { code: "CC0001", title: "ICC Comm", au: 2, isIcc: true },
+};
+const planWithIcc = {
+  ...validPlan,
+  Y1S1: ["SC1003", "CC0001"],
+};
+const progressValid = calculateDegreeProgress(planWithIcc, testSummaryByCode, detailsByCode);
+assert.equal(progressValid.totalAu, 14);
+assert.equal(progressValid.coreAu, 12);
+assert.equal(progressValid.iccAu, 2);
+assert.equal(progressValid.conflictCount, 0);
+assert.equal(progressValid.percentage, Math.round((14 / 130) * 100));
+
+const progressConflict = calculateDegreeProgress(mutexPlan, testSummaryByCode, detailsByCode);
+assert.equal(progressConflict.conflictCount >= 1, true);
+console.log("PASS Test 10: calculateDegreeProgress computes total AU, core AU, ICC AU and conflicts cleanly");
+
+// Test 11: Cyber Security - Prototype Pollution Resistance
+assert.equal(isValidModuleCode("__proto__"), false);
+assert.equal(isValidModuleCode("constructor"), false);
+assert.equal(isValidModuleCode("prototype"), false);
+
+const pollutedDetails = Object.create(null);
+pollutedDetails["SC2001"] = detailsByCode.SC2001;
+const safeSlotRes = validateModuleInSlot("SC2001", "Y2S1", validPlan, pollutedDetails);
+assert.equal(safeSlotRes.status, "valid");
+assert.equal(safeSlotRes.prereqMet, true);
+console.log("PASS Test 11: Prototype pollution resistance verified with Object.create(null) and poisoned key rejections");
 
 console.log("\nALL TESTS PASSED!");

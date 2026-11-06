@@ -26,6 +26,10 @@ export const SEMESTERS = [
 
 export const VALID_SEMESTER_IDS = new Set(SEMESTERS.map((s) => s.id));
 
+export const SEMESTER_INDEX_BY_ID = new Map(
+  SEMESTERS.map((s, idx) => [s.id, idx])
+);
+
 /**
  * Escapes untrusted text before interpolation into DOM strings.
  * Neutralises HTML markup, quotes, and script injection vectors.
@@ -42,9 +46,15 @@ export function escapeHtml(value) {
 /**
  * Validates module code structure (e.g. SC2001, CC0001, MH1812).
  * Prevents path traversal and injection via malformed codes.
+ * Rejects prototype pollution property keys.
  */
 export function isValidModuleCode(code) {
-  return typeof code === "string" && /^[A-Z0-9]{5,10}$/.test(code);
+  if (typeof code !== "string") return false;
+  const upper = code.trim().toUpperCase();
+  if (upper === "__PROTO__" || upper === "CONSTRUCTOR" || upper === "PROTOTYPE") {
+    return false;
+  }
+  return /^[A-Z0-9]{5,10}$/.test(upper);
 }
 
 /**
@@ -154,8 +164,8 @@ export function validateModuleInSlot(code, targetSemId, plan, detailsByCode) {
     };
   }
 
-  const targetIndex = SEMESTERS.findIndex((s) => s.id === targetSemId);
-  const targetSemObj = SEMESTERS[targetIndex];
+  const targetIndex = SEMESTER_INDEX_BY_ID.get(targetSemId) ?? -1;
+  const targetSemObj = targetIndex >= 0 ? SEMESTERS[targetIndex] : null;
   const earlierCodes = new Set();
   const allPlannedCodes = new Set();
 
@@ -163,12 +173,18 @@ export function validateModuleInSlot(code, targetSemId, plan, detailsByCode) {
     const sem = SEMESTERS[idx];
     const codesInSem = plan && Array.isArray(plan[sem.id]) ? plan[sem.id] : [];
     for (const c of codesInSem) {
-      if (c !== code) allPlannedCodes.add(c);
-      if (idx < targetIndex) earlierCodes.add(c);
+      if (typeof c === "string") {
+        const upper = c.toUpperCase();
+        if (upper !== code.toUpperCase()) allPlannedCodes.add(upper);
+        if (idx < targetIndex) earlierCodes.add(upper);
+      }
     }
   }
 
-  const detail = detailsByCode ? detailsByCode[code] : null;
+  const detail =
+    detailsByCode && typeof detailsByCode === "object"
+      ? detailsByCode[code] || detailsByCode[code.toUpperCase()] || null
+      : null;
   if (!detail) {
     return {
       status: "unverified",
@@ -188,13 +204,18 @@ export function validateModuleInSlot(code, targetSemId, plan, detailsByCode) {
       (andGroup) =>
         Array.isArray(andGroup) &&
         andGroup.length > 0 &&
-        andGroup.every((reqCode) => earlierCodes.has(reqCode))
+        andGroup.every(
+          (reqCode) =>
+            typeof reqCode === "string" && earlierCodes.has(reqCode.toUpperCase())
+        )
     );
   }
 
   // 2. Check mutual exclusions across the entire 8-semester plan
   const mutexList = Array.isArray(detail.mutuallyExclusiveWith) ? detail.mutuallyExclusiveWith : [];
-  const mutexConflicts = mutexList.filter((mCode) => allPlannedCodes.has(mCode));
+  const mutexConflicts = mutexList.filter(
+    (mCode) => typeof mCode === "string" && allPlannedCodes.has(mCode.toUpperCase())
+  );
 
   // 3. Check if module has historically been offered in targetSemObj.sem ("1" or "2")
   const offeredSemesters = new Set();
@@ -222,3 +243,44 @@ export function validateModuleInSlot(code, targetSemId, plan, detailsByCode) {
     unlocks: Array.isArray(detail.requiredBy) ? detail.requiredBy : [],
   };
 }
+
+/**
+ * Pure calculation of graduation progress metrics (total AU, core AU, ICC AU, and conflict count)
+ * across the 8-semester roadmap. Decouples state calculation from DOM rendering.
+ */
+export function calculateDegreeProgress(plan, summaryByCode, detailsByCode) {
+  let totalAu = 0;
+  let coreAu = 0;
+  let iccAu = 0;
+  let conflictCount = 0;
+
+  for (const sem of SEMESTERS) {
+    const codes = plan && Array.isArray(plan[sem.id]) ? plan[sem.id] : [];
+    for (const code of codes) {
+      if (typeof code !== "string") continue;
+      const sum =
+        summaryByCode && summaryByCode[code]
+          ? summaryByCode[code]
+          : { code, title: code, au: 3, isIcc: false };
+      totalAu += sum.au;
+      if (sum.isIcc) {
+        iccAu += sum.au;
+      } else {
+        coreAu += sum.au;
+      }
+      const check = validateModuleInSlot(code, sem.id, plan, detailsByCode);
+      if (check.status === "conflict") {
+        conflictCount++;
+      }
+    }
+  }
+
+  return {
+    totalAu,
+    coreAu,
+    iccAu,
+    conflictCount,
+    percentage: Math.min(100, Math.round((totalAu / 130) * 100)),
+  };
+}
+

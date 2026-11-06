@@ -131,8 +131,10 @@
     import {
       SEMESTERS,
       VALID_SEMESTER_IDS,
+      SEMESTER_INDEX_BY_ID,
       groupCatalogueByYear,
       validateModuleInSlot,
+      calculateDegreeProgress,
       normaliseModuleSummary,
       escapeHtml,
       isValidModuleCode,
@@ -148,9 +150,9 @@
     let unlockedHighlightSet = new Set();
 
     // Cache of hydrated module detail payloads from /api/modules/{code}
-    const detailsByCode = {};
+    const detailsByCode = Object.create(null);
     // Map of code -> normalised summary
-    const summaryByCode = {};
+    const summaryByCode = Object.create(null);
 
     // 8-Semester plan state
     const plan = {
@@ -343,10 +345,7 @@
 
     function renderBoard() {
       const yearsGrid = document.getElementById("yearsGrid");
-      let totalAu = 0;
-      let coreAu = 0;
-      let iccAu = 0;
-      let conflictCount = 0;
+      const progress = calculateDegreeProgress(plan, summaryByCode, detailsByCode);
 
       const yearCards = [1, 2, 3, 4].map((yearNum) => {
         const semsForYear = SEMESTERS.filter((s) => s.year === yearNum);
@@ -361,12 +360,7 @@
             const cardsHtml = codes
               .map((code) => {
                 const sum = summaryByCode[code] || { code, title: code, au: 3, isIcc: false };
-                totalAu += sum.au;
-                if (sum.isIcc) iccAu += sum.au;
-                else coreAu += sum.au;
-
                 const check = validateModuleInSlot(code, sem.id, plan, detailsByCode);
-                if (check.status === "conflict") conflictCount++;
 
                 const isUnlocked = unlockedHighlightSet.has(code);
                 let cardStyle = "border-slate-200 bg-white";
@@ -439,17 +433,14 @@
       yearsGrid.innerHTML = yearCards.join("");
 
       // Update Top Journey Progress Bar
-      document.getElementById("totalAuLabel").textContent = `${totalAu} / 130 AUs`;
-      document.getElementById("coreAuLabel").textContent = `${coreAu} AU`;
-      document.getElementById("iccAuLabel").textContent = `${iccAu} / 17 AU`;
-      document.getElementById("auProgressBar").style.width = `${Math.min(
-        100,
-        Math.round((totalAu / 130) * 100)
-      )}%`;
+      document.getElementById("totalAuLabel").textContent = `${progress.totalAu} / 130 AUs`;
+      document.getElementById("coreAuLabel").textContent = `${progress.coreAu} AU`;
+      document.getElementById("iccAuLabel").textContent = `${progress.iccAu} / 17 AU`;
+      document.getElementById("auProgressBar").style.width = `${progress.percentage}%`;
 
       const banner = document.getElementById("statusBanner");
-      if (conflictCount > 0) {
-        banner.textContent = `${conflictCount} prerequisite or mutex issue(s) detected`;
+      if (progress.conflictCount > 0) {
+        banner.textContent = `${progress.conflictCount} prerequisite or mutex issue(s) detected`;
         banner.className = "text-rose-600 font-medium";
       } else {
         banner.textContent = "All prerequisites satisfied";
