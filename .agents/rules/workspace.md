@@ -3,6 +3,7 @@
 ## Tech Stack & Conventions
 - Framework: Next.js 14 App Router with TypeScript, Tailwind CSS, and `lucide-react` icons.
 - Zero API Keys Required: All course data comes from the public NTUMods API (`https://ntumods.com`).
+- Cloud Deployment Ready: Support containerised standalone builds (`output: 'standalone'`) on port 8080 for Google Cloud Run deployment.
 
 ## NTUMods API Endpoints & Data Rules
 1. Bulk Catalogue Endpoint (`GET https://ntumods.com/data/api/modules.json`):

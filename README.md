@@ -1,11 +1,13 @@
 # Introduction to Google Antigravity: Build your own NTU 4-Year Degree and Skill-Tree Planner
 
+(Insert screenshot here: Hero preview of your completed NTU PathFinder 4-Year Degree and Skill-Tree Planner dashboard, e.g. `images/ntu-pathfinder-hero.png`)
+
 ## Overview and Objectives
 
 In this codelab, you will build NTU PathFinder, an interactive 4-year university degree roadmap and prerequisite skill-tree planner consisting of:
 1. An Interactive 8-Semester Degree Board: Plan your entire NTU journey from Year 1 Sem 1 to Year 4 Sem 2 with a live Graduation Academic Unit (AU) progress bar tracking your Core AUs, Interdisciplinary Collaborative Core (ICC) AUs, and Electives.
 2. A Live Prerequisite Skill-Tree Visualiser: Click any Year 1 or Year 2 course to highlight the Year 3 and Year 4 modules it unlocks, and automatically catch missing prerequisites or mutually exclusive course clashes before STARS registration.
-3. (Optional Challenge) One-Click Cloud Deployment to Vercel: Publish your planner to the cloud with a shareable URL that you and your coursemates can access from anywhere.
+3. (Optional Challenge) Serverless Deployment to Google Cloud Run: Deploy your planner as a containerised web service on Google Cloud Platform (GCP) with zero server maintenance and a shareable HTTPS URL that you and your coursemates can access from anywhere.
 
 ### System Architecture and Data Flow
 This diagram illustrates how your web application connects to the public NTUMods API and organises your degree plan across three levels (Entire University Journey, Per Year, and Per Semester):
@@ -33,6 +35,12 @@ This diagram illustrates how your web application connects to the public NTUMods
       |  * Main Grid: 8-Semester Board with Live Prerequisite & Mutex Alerts  |
       |  * Bottom Drawer: Interactive Skill-Tree & Course Unlock Inspector    |
       +-----------------------------------------------------------------------+
+                                   |
+                                   v
+      +-----------------------------------------------------------------------+
+      |       Google Cloud Run Serverless Container (asia-southeast1)         |
+      |  * Standalone Next.js Build on Port 8080 with Public HTTPS URL        |
+      +-----------------------------------------------------------------------+
 ```
 
 ### The Antigravity Way: Spec-Driven Development (SDD)
@@ -54,6 +62,7 @@ Each section includes:
 - How to use Antigravity's Planning Mode (`/plan`) to review an architectural blueprint before generating code.
 - How to integrate the public NTUMods API (`https://ntumods.com`) to fetch live NTU course catalogues, Academic Units, and prerequisite chains.
 - How to use Agent Skills and the `/grill-me` design interview command to customise the look and feel of your app.
+- How to deploy a Next.js web application to Google Cloud Run from source using the Google Cloud SDK (`gcloud` CLI).
 
 ---
 
@@ -62,16 +71,19 @@ Each section includes:
 In this section, we will set up a new Next.js project in VS Code and configure our Antigravity workspace rules.
 
 ### 1. Prerequisites Check
-You only need two things installed on your laptop to complete the workshop:
+You only need two things installed on your laptop to complete the core workshop:
 - Node.js (version 18.17.0 or higher): Download Node.js at https://nodejs.org/en/download
 - Visual Studio Code (VS Code) with the Antigravity Extension installed and logged in: Download VS Code at https://code.visualstudio.com/download
 
-> Optional for Phase 5 Only: If you want to try the optional cloud deployment challenge at the end of the workshop to get a shareable public URL, you can sign up for a free Vercel Hobby account at https://vercel.com/signup later. You do not need a Vercel account to build and run the app in Phases 1 to 4.
+> Optional for Phase 5 Only: If you want to try the optional cloud deployment challenge at the end of the workshop to get a shareable public URL on Google Cloud Run, you will need a Google Cloud Platform (GCP) account with a project and the Google Cloud SDK (`gcloud` CLI) installed (https://cloud.google.com/sdk/docs/install). You do not need a GCP account or the `gcloud` CLI to build and run the app on your laptop in Phases 1 to 4.
 
 ### 2. Open VS Code and Create Your Project
 1. Open Visual Studio Code.
-2. Create a new folder named `ntu-workshop` on your computer (such as in `Documents` or `Downloads`), and open it in VS Code by clicking `File > Open Folder...`.
+2. Create a new folder named `google-workshop` on your computer (such as in `Documents` or `Downloads`), and open it in VS Code by clicking `File > Open Folder...`.
 3. Open the integrated terminal in VS Code by clicking `Terminal > New Terminal` in the top menu bar (or press `` Ctrl+` `` on Windows / `` Cmd+` `` on Mac).
+
+![Open New Terminal in VS Code](images/vscode-new-terminal.png)
+
 4. Copy and paste the following commands into the terminal and press Enter:
 
 ```bash
@@ -90,18 +102,26 @@ npm install lucide-react
 > - Tailwind CSS: A styling toolkit that lets Antigravity design clean cards, progress bars, and responsive grids without complex stylesheet files.
 > - Lucide React: A library of clean vector icons used for course badges, warning alerts, and navigation buttons.
 
+(Insert screenshot here: Terminal output after scaffolding `ntu-pathfinder` and installing `lucide-react`, e.g. `images/scaffold-project.png`)
+
 ### 3. Establish Antigravity Rules (`.agents/rules/workspace.md`)
 Antigravity reads workspace rules inside `.agents/rules/` to understand how your project should be built. Setting these rules first ensures the agent uses the exact NTUMods API fields and builds a consistent 4-year planner on the first try.
 
-1. Open a terminal in VS Code (`Terminal > New Terminal`) and make sure you are inside the `ntu-pathfinder` folder:
+1. Open a new terminal in VS Code by going to `Terminal > New Terminal`.
+
+![Open New Terminal](images/new-terminal.png)
+
+2. Make sure your terminal is inside the `ntu-pathfinder` folder and create the `.agents/rules` directory:
 
 ```bash
 cd ntu-pathfinder 2>/dev/null || true
 mkdir -p .agents/rules
 ```
 
-2. In the VS Code file explorer sidebar on the left, expand the `ntu-pathfinder` folder, then expand the `.agents` folder.
-3. Right-click on the `rules` folder and click `New File`. Name the new file `workspace.md`.
+3. In the VS Code file explorer sidebar on the left, expand the `ntu-pathfinder` folder, then expand the `.agents` folder. Right-click on the `rules` folder and click `New File`. Name the new file `workspace.md`.
+
+(Insert screenshot here: Right-clicking `.agents/rules` in the VS Code Explorer sidebar to create `workspace.md`, e.g. `images/create-workspace-rules.png`)
+
 4. Double-click on `workspace.md` to open it, then copy and paste the following specification into `workspace.md`:
 
 ```markdown
@@ -110,6 +130,7 @@ mkdir -p .agents/rules
 ## Tech Stack & Conventions
 - Framework: Next.js 14 App Router with TypeScript, Tailwind CSS, and `lucide-react` icons.
 - Zero API Keys Required: All course data comes from the public NTUMods API (`https://ntumods.com`).
+- Cloud Deployment Ready: Support containerised standalone builds (`output: 'standalone'`) on port 8080 for Google Cloud Run deployment.
 
 ## NTUMods API Endpoints & Data Rules
 1. Bulk Catalogue Endpoint (`GET https://ntumods.com/data/api/modules.json`):
@@ -148,7 +169,11 @@ mkdir -p .agents/rules
   - Clicking any module card shows its full description, DNF prerequisites, the list of downstream modules it unlocks (`requiredBy`), and mutually exclusive courses.
 ```
 
+(Insert screenshot here: Configuring `workspace.md` rules inside VS Code, e.g. `images/configure-workspace-rules.png`)
+
 5. Save the file using `Ctrl+S` (Windows) or `Cmd+S` (Mac), or click `File > Save` in the top menu.
+
+(Insert screenshot here: Saving `workspace.md` in VS Code, e.g. `images/save-workspace-rules.png`)
 
 ---
 
@@ -169,10 +194,20 @@ Detail the file creations and verification steps for:
 3. `app/page.tsx`: Interactive 4-Year / 8-Semester degree planner and skill-tree visualiser built with Tailwind CSS and Lucide icons.
 ```
 
+(Insert screenshot here: Submitting the `/plan` prompt in the Antigravity Chat Panel, e.g. `images/agy-plan-prompt.png`)
+
 ### Reviewing and Running the Implementation Plan
 1. Antigravity will generate an `Implementation Plan` card in the chat panel.
+
+(Insert screenshot here: Antigravity `Implementation Plan` card generated in the chat panel, e.g. `images/agy-implementation-plan.png`)
+
 2. Click on `Implementation Plan` to preview the file list and architecture, then click the `Proceed` button.
+
+(Insert screenshot here: Reviewing `implementation_plan.md` and clicking `Proceed`, e.g. `images/agy-plan-proceed.png`)
+
 3. Give Antigravity a moment to write the code files for you. When it finishes, click `Accept all` if prompted in the editor to accept the generated files.
+
+![Click Accept All](images/accept-all.png)
 
 ---
 
@@ -186,6 +221,8 @@ In the VS Code file explorer on the left, click on the `lib` folder to see the t
 - `lib/ntumods.ts`: Connects to the public `ntumods.com` API. It groups courses into Year 1 (`1xxx`), Year 2 (`2xxx`), Year 3 (`3xxx`), Year 4 (`4xxx`), and `ICC` common cores, and checks whether the prerequisites for each course on your board have been completed in an earlier semester.
 
 > Poke Around: Open `lib/ntumods.ts` in VS Code. Notice how the validation function checks earlier semesters on your board to decide whether a card should be marked green (`Valid`) or red (`Needs prerequisite`).
+
+(Insert screenshot here: Inspecting `lib/types.ts` and `lib/ntumods.ts` in the VS Code editor, e.g. `images/inspect-data-layer.png`)
 
 ---
 
@@ -209,6 +246,8 @@ npm run dev
 > - If you see `ENOENT: Could not read package.json`: Your terminal is one folder too high. Run `cd ntu-pathfinder` and then run `npm run dev` again.
 > - If you see `Port 3000 is in use, trying 3001 instead`: Look at the `Local: http://localhost:3001` link printed in the terminal and open that port in your browser.
 
+(Insert screenshot here: Next.js development server running on `http://localhost:3000` in the VS Code terminal, e.g. `images/web-dev-server.png`)
+
 2. Open `http://localhost:3000` in Google Chrome or your preferred web browser.
 
 ### 2. Four Interactive Features to Try Out
@@ -223,6 +262,10 @@ Once the dashboard loads at `http://localhost:3000`, test these four workflows:
    - Watch `SC2001 (Algorithm Design & Analysis)` in `Year 2 Sem 1` immediately turn red with a badge telling you which prerequisite is missing!
 4. Switch to Your Own NTU Degree Programme:
    - Use the `Programme` dropdown at the top (`CSC`, `CE`, `EEE`, `BUS`, `ACC`, `ME`, `MATH`, `ECON`, `PSY`, `CBE`, `CEE`, `BS`) to switch to any NTU school and browse its Year 1 to Year 4 courses in the left sidebar.
+
+(Insert screenshot here: Initial NTU PathFinder Web Dashboard at `http://localhost:3000` showing the 8-semester board, e.g. `images/web-dashboard-initial.png`)
+
+(Insert screenshot here: Skill-tree highlighting downstream courses in blue when clicking `SC1007`, e.g. `images/web-dashboard-skilltree.png`)
 
 ---
 
@@ -245,6 +288,8 @@ npx skills add Leonxlnx/taste-skill -y
 
 > Why `-y`?: Adding `-y` automatically confirms the installation prompts and places the design skills directly into your project's `.agents/skills/` folder.
 
+(Insert screenshot here: Installing `Leonxlnx/taste-skill` in the VS Code terminal, e.g. `images/install-taste-skill.png`)
+
 ### 2. Run the Interactive Design Interview (`/grill-me`)
 Open the Antigravity Chat Panel and enter this prompt:
 
@@ -252,60 +297,116 @@ Open the Antigravity Chat Panel and enter this prompt:
 /grill-me I want to redesign our NTU PathFinder web dashboard (`app/page.tsx`) using our newly installed taste skills. Grill me with questions about my preferred visual aesthetic, colour theme, card layout density, and skill-tree animations before making any code changes.
 ```
 
+(Insert screenshot here: Prompting Antigravity with `/grill-me` in the chat panel, e.g. `images/agy-grillme-prompt.png`)
+
 ### 3. Pick Your Style and Apply the Redesign
 1. Antigravity will present a short set of multiple-choice design questions in the chat panel (such as Dark Mode vs Light Mode, Glassmorphic cards vs Minimalist borders, and skill-tree glow effects).
 2. Click your favourite options (or type your own custom idea) and click `Continue`.
-3. When Antigravity shows the updated `Implementation Plan`, click `Proceed`, and then click `Accept all` once it finishes updating `app/page.tsx`.
-4. Start your server again if you paused it:
+
+(Insert screenshot here: Interactive multiple-choice design questions in the Antigravity chat panel, e.g. `images/agy-grillme-questions.png`)
+
+3. When Antigravity shows the updated `Implementation Plan`, click `Proceed`.
+
+(Insert screenshot here: Clicking `Proceed` on the redesign Implementation Plan, e.g. `images/agy-redesign-proceed.png`)
+
+4. Give Antigravity a moment to update your design. Once it finishes updating `app/page.tsx`, click `Accept all` if prompted.
+
+![Accept All Design Changes](images/accept-all.png)
+
+5. Start your server again if you paused it:
 
 ```bash
 npm run dev
 ```
 
-5. Refresh `http://localhost:3000` in your browser to see your custom-designed NTU PathFinder dashboard!
+6. Refresh `http://localhost:3000` in your browser to see your custom-designed NTU PathFinder dashboard!
+
+(Insert screenshot here: Redesigned NTU PathFinder dashboard running at `http://localhost:3000`, e.g. `images/web-dashboard-redesigned.png`)
 
 ---
 
-## Phase 5 (Optional Challenge): One-Click Deploy to Vercel
+## Phase 5 (Optional Challenge): Serverless Deployment to Google Cloud Run
 
-Want to share your interactive 4-year planner with your friends or access it on your phone/iPad? Let's deploy it to the cloud for free using Vercel.
+Want to share your interactive 4-year planner with your friends or access it on your phone or iPad? Let's deploy it to Google Cloud Platform (GCP) using Google Cloud Run!
 
-### 1. Why Vercel?
-Vercel is the cloud platform built by the creators of Next.js. Because our app uses the public NTUMods API with zero secret keys or database servers, you can deploy it in under two minutes with a single command and get a permanent `https://...vercel.app` link.
+### 1. What is Google Cloud Run?
+Google Cloud Run is Google Cloud's fully managed serverless platform for running containerised web applications:
+- Zero Server Management: You do not need to provision or maintain virtual machines or Kubernetes clusters. Cloud Run builds your code from source and runs it automatically.
+- Automatic Scaling to Zero: Cloud Run scales up smoothly when students visit your planner and scales down to zero instances when nobody is using it so you do not pay for idle servers.
+- Instant HTTPS URL: Every Cloud Run service automatically receives a secure `https://...run.app` web address with built-in SSL encryption.
 
-### 2. Deploy Your App Live
-1. If you do not have a Vercel account yet, sign up for the free Hobby plan at https://vercel.com/signup.
-2. Open a terminal in VS Code (`Terminal > New Terminal`) inside your `ntu-pathfinder` folder:
+### 2. Prepare Your Next.js App for Cloud Run with Antigravity
+To run efficiently on Google Cloud Run, we will ask Antigravity to enable Next.js standalone mode and create a lightweight `Dockerfile` that listens on port `8080`.
+
+#### The Agentic Prompt (Antigravity)
+Open the Antigravity Chat Panel and paste the following prompt:
+
+```text
+Prepare our Next.js application for deployment to Google Cloud Run:
+1. Configure `output: 'standalone'` in `next.config.mjs` (or `next.config.ts`).
+2. Create a production `Dockerfile` and `.dockerignore` that builds the Next.js standalone server and listens on port 8080 (`ENV PORT=8080` and `ENV HOSTNAME="0.0.0.0"`).
+```
+
+(Insert screenshot here: Asking Antigravity to generate the `Dockerfile` and standalone Next.js configuration for Google Cloud Run, e.g. `images/agy-cloudrun-prompt.png`)
+
+Once Antigravity finishes creating the `Dockerfile` and updating your Next.js config, click `Accept all` if prompted.
+
+![Accept All Cloud Run Changes](images/accept-all.png)
+
+### 3. Deploy to Google Cloud Run from the Terminal
+1. In Visual Studio Code, open a new terminal by clicking `Terminal > New Terminal`.
+
+![Open New Terminal for Cloud Run Deployment](images/new-terminal.png)
+
+2. Make sure your terminal is inside the `ntu-pathfinder` folder:
 
 ```bash
 cd ntu-pathfinder 2>/dev/null || true
 ```
 
-3. Log in to Vercel from the terminal:
+3. Log in to Google Cloud from the terminal and set your Google Cloud Project ID (replace `<YOUR_GCP_PROJECT_ID>` with your actual GCP Project ID):
 
 ```bash
-npx vercel login
+gcloud auth login
+gcloud config set project <YOUR_GCP_PROJECT_ID>
 ```
 
-   (If asked `Ok to proceed? (y)`, type `y` and press Enter, then follow the browser prompt to authorise).
+   (Follow the browser prompt to sign in with your Google Cloud account when `gcloud auth login` opens).
 
-4. Deploy your app to production:
+4. Enable the required Cloud Run, Cloud Build, and Artifact Registry APIs on your project:
 
 ```bash
-npx vercel --prod --yes
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
+  --project=<YOUR_GCP_PROJECT_ID> \
+  --quiet
 ```
 
-5. Once the command finishes, Vercel will print a live `Production` URL in your terminal (for example, `https://ntu-pathfinder-xxxx.vercel.app`). Click that link to open your live cloud-hosted NTU 4-Year Degree Planner!
+5. Deploy your application directly from source to Google Cloud Run in the Singapore region (`asia-southeast1`):
+
+```bash
+gcloud run deploy ntu-pathfinder \
+  --source=. \
+  --region=asia-southeast1 \
+  --allow-unauthenticated \
+  --project=<YOUR_GCP_PROJECT_ID> \
+  --quiet
+```
+
+(Insert screenshot here: Terminal output showing `gcloud run deploy` building the container and printing the live `Service URL`, e.g. `images/cloudrun-deploy-terminal.png`)
+
+6. Once the build and deployment finish (usually 2 to 3 minutes), Google Cloud Run will print a live `Service URL` in your terminal (for example, `https://ntu-pathfinder-xxxxxxxxxx-as.a.run.app`). Click that link to open your live Google Cloud hosted NTU 4-Year Degree Planner!
+
+(Insert screenshot here: Live NTU PathFinder web app running on your public `https://...run.app` Google Cloud Run URL, e.g. `images/cloudrun-live-app.png`)
 
 ---
 
 ## Summary and Next Steps
 
-Congratulations! You have built, styled, and deployed an interactive 4-year NTU degree and prerequisite skill-tree planner using Google Antigravity.
+Congratulations! You have built, styled, and deployed an interactive 4-year NTU degree and prerequisite skill-tree planner using Google Antigravity and Google Cloud Run.
 
 ### What You Accomplished
 - Rule Anchoring: Configured `.agents/rules/workspace.md` so Antigravity understood the NTUMods API and 8-semester layout rules from the start.
 - Planning Mode (`/plan`): Reviewed and approved an implementation plan before generating code.
 - Live NTUMods Integration: Connected your app to the public NTUMods catalogue and module graph endpoints to track Academic Units, check prerequisites, and highlight unlocked courses.
 - Agent Skills and `/grill-me`: Installed `taste-skill` and used an interactive design interview to give your app a custom visual theme.
-- Cloud Deployment: Published your application to a live Vercel URL.
+- Google Cloud Run Deployment: Packaged your Next.js app as a standalone container and deployed it serverlessly to Google Cloud Run in `asia-southeast1`.
